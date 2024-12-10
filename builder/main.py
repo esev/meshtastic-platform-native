@@ -16,29 +16,56 @@
     Builder for native platform
 """
 
+import os
 from SCons.Script import COMMAND_LINE_TARGETS, AlwaysBuild, Default, DefaultEnvironment
 
 env = DefaultEnvironment()
 
-# Remove generic C/C++ tools
-for k in ("CC", "CXX"):
-    if k in env:
-        del env[k]
+#
+# Setup tools dependent on 'board'
+#
 
-# Preserve C and C++ build flags
-backup_cflags = env.get("CFLAGS", [])
-backup_cxxflags = env.get("CXXFLAGS", [])
+# Buildroot environment
+if env.get("BOARD") == "buildroot":
+    # Use toolchain from buildroot
+    env.Replace(
+        AR=os.getenv("TARGET_AR"),
+        AS=os.getenv("TARGET_AS"),
+        CC=os.getenv("TARGET_CC"),
+        CXX=os.getenv("TARGET_CXX"),
+        LD=os.getenv("TARGET_LD"),
+        OBJCOPY=os.getenv("TARGET_OBJCOPY"),
+        RANLIB=os.getenv("TARGET_RANLIB")
+    )
 
-# Scan for GCC compiler
-env.Tool("gcc")
-env.Tool("g++")
+    # Append flags from buildroot
+    env.Append(
+        CFLAGS=os.getenv("TARGET_CFLAGS"),
+        LDFLAGS=os.getenv("TARGET_LDFLAGS"),
+        CXXFLAGS=os.getenv("TARGET_CXXFLAGS")
+    )
 
-# Reload "compilation_db" tool
-if "compiledb" in COMMAND_LINE_TARGETS:
-    env.Tool("compilation_db")
+# Native environment (toolchain from the host)
+else:
+    # Remove generic C/C++ tools
+    for k in ("CC", "CXX"):
+        if k in env:
+            del env[k]
 
-# Restore C/C++ build flags as they were overridden by env.Tool
-env.Append(CFLAGS=backup_cflags, CXXFLAGS=backup_cxxflags)
+    # Preserve C and C++ build flags
+    backup_cflags = env.get("CFLAGS", [])
+    backup_cxxflags = env.get("CXXFLAGS", [])
+
+    # Scan for GCC compiler
+    env.Tool("gcc")
+    env.Tool("g++")
+
+    # Reload "compilation_db" tool
+    if "compiledb" in COMMAND_LINE_TARGETS:
+        env.Tool("compilation_db")
+
+    # Restore C/C++ build flags as they were overridden by env.Tool
+    env.Append(CFLAGS=backup_cflags, CXXFLAGS=backup_cxxflags)
 
 #
 # Target: Build executable program
